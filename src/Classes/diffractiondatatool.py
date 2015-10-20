@@ -11,6 +11,22 @@ import matplotlib.pyplot as plt
 from scipy import signal
 from math import sqrt
 
+class XYZDataArray(object):
+    '''
+    This class contains a 3 dimensional numpy array.  The array values are taken from
+    multiple x-ray diffraction data files
+    '''
+
+    def __init__(self, num_files):
+        '''
+        Constructor
+        '''
+
+        self._num_files = num_files
+
+        return
+
+
 class XYDataArray(object):
     '''
     This class contains a 2 dimensional numpy array. The array values are taken from 
@@ -83,9 +99,12 @@ class XYDataArray(object):
         # If the value of the ith element in the first dimension is between the two
         # suplied values, then add the value of the ith element in the second
         # dimension to the running total.
-        for i in range(self.array_size):
-            if (self.data_values[0,i] >= roiStart) and (self.data_values[0,i] <= roiEnd):
-                sumVal = sumVal + self.data_values[1,i]
+#        for i in range(self.array_size):
+#            if (self.data_values[0,i] >= roiStart) and (self.data_values[0,i] <= roiEnd):
+#                sumVal = sumVal + self.data_values[1,i]
+
+        indices=np.where(np.logical_and(self.data_values[0] >= roiStart, self.data_values[0] <= roiEnd))
+        sumVal = np.sum(self.data_values[1,indices])
 
         return sumVal
 
