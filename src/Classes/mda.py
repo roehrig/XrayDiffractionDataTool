@@ -539,9 +539,11 @@ def readMDA(fname=None, maxdim=4, verbose=0, showHelp=0, outFile=None, useNumpy=
     else:
         out = open(outFile, 'w')
 
+    # Open the file in mode read only + binary.
+    # Binary mode is only applicable for Windows and ignored for Linux.
     scanFile = open(fname, 'rb')
     if verbose: out.write("verbose=%d output for MDA file '%s'\n" % (verbose, fname))
-    buf = scanFile.read(100)        # to read header for scan of up to 5 dimensions
+    buf = scanFile.read(100)        # to read header for scan of up to 5 dimensions, reads first 100 bytes
     u = xdr.Unpacker(buf)
 
     # read file header
@@ -563,6 +565,7 @@ def readMDA(fname=None, maxdim=4, verbose=0, showHelp=0, outFile=None, useNumpy=
     if verbose: out.write("isRegular = %d\n" % isRegular)
     pExtra = u.unpack_int()
     if verbose: out.write("pExtra = %d (0x%x)\n" % (pExtra, pExtra))
+    # Calculate where to start looking for data
     pmain_scan = scanFile.tell() - (len(buf) - u.get_position())
 
     # collect 1D data

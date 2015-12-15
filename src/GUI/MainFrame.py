@@ -241,6 +241,8 @@ class MainFrame(wx.Frame):
                 fileName = listItem.GetText()
                 checkedFileList.append(fileName)
 
+        self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetRange(len(checkedFileList))
+
 #        numCheckedFiles = len(checkedFileList)
 #        chunkSize = int(numCheckedFiles / 10)
 #        if chunkSize < 1:
@@ -330,7 +332,7 @@ class MainFrame(wx.Frame):
     def UpdateProgressBar(self, evt):
         
         self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetValue(evt.GetValue())
-        
+
         return
     
     def OnCloseButtonClick(self, event):

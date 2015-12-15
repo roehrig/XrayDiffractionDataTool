@@ -26,14 +26,14 @@ class MyApp(wx.App):
         startWindow.Show(True)
         
         # Create the window for displaying the mda files
-#        mdaWindow = MDAexplorer.TopFrame(None, -1, 'MDA Explorer', size=(800,500))
-#        mdaWindow.Center()
-#        (hS, vS) = mdaWindow.GetSize()
-#        (hP, vP) = mdaWindow.GetPosition()
-#        mdaWindow.width = (hP + hS/2)*2
-#        mdaWindow.height = (vP + vS/2)*2
-#        mdaWindow.SetMaxSize((mdaWindow.width, mdaWindow.height))
-#        mdaWindow.Show(True)
+        mdaWindow = MDAexplorer.TopFrame(None, -1, 'MDA Explorer', size=(800,500))
+        mdaWindow.Center()
+        (hS, vS) = mdaWindow.GetSize()
+        (hP, vP) = mdaWindow.GetPosition()
+        mdaWindow.width = (hP + hS/2)*2
+        mdaWindow.height = (vP + vS/2)*2
+        mdaWindow.SetMaxSize((mdaWindow.width, mdaWindow.height))
+        mdaWindow.Show(True)
         
         return True
 

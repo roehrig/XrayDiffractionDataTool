@@ -102,6 +102,7 @@ class DataSummationThread (threading.Thread):
         # Alert the main application that the data is ready to be plotted.
         print "Signal the GUI to plot the summation results"
         evt = DataSummationEvent(myEVT_SUM_DATA, -1, roi_sums)
+#        evt = DataSummationEvent(myEVT_SUM_DATA, -1, arr)
         wx.PostEvent(self._parent, evt)
 
         return

@@ -150,6 +150,7 @@ class ROI:
             self.ax.add_line(self.line)
         if (not(self.line2 == None)):
             self.ax.add_line(self.line2)
+        self.fig.canvas.draw()
         
         return
     

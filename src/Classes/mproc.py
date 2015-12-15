@@ -149,7 +149,7 @@ def distribute_jobs(arr, func, num_files, args=None, kwargs=None, ncore=None, nc
         _args.append(_prepare_args(func, args, kwargs, istart, iend))
 
     # Start processes.
-    return 0#_start_proc(arr, _args)
+    return _start_proc(arr, _args)
 
 
 def _prepare_args(func, args, kwargs, istart, iend):
