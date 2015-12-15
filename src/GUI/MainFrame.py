@@ -241,6 +241,7 @@ class MainFrame(wx.Frame):
                 fileName = listItem.GetText()
                 checkedFileList.append(fileName)
 
+        # Set the range of the progress bar to be the number of files that will be summed.
         self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetRange(len(checkedFileList))
 
 #        numCheckedFiles = len(checkedFileList)
