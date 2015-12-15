@@ -9,21 +9,49 @@ import sys
 import time
 import locale
 import math
+
+# the executable produced by pyinstaller doeasn't know what to make
+# of matplotlib.numerix.ma.getmask, and it can't find the matplotlib data files
+#!if hasattr(sys, 'frozen') and sys.frozen:
+#!    import numpy.core.ma
+#!    sys.modules['numpy.ma'] = sys.modules['numpy.core.ma']
+    # This evidently is for py2exe, not pyinstaller
+    #mpldir = os.path.join(theModuleManager.get_appdir(), 'matplotlibdata')
+    #print 'mpldir=', mpldir
+    #os.environ['MATPLOTLIBDATA'] = mpldir 
+
 import matplotlib
+#matplotlib.use('WXAgg')
 import wx
+#!HAVE_WXMPL = True
+#!try:
+#!    import wxmpl
+#!except:
+HAVE_WXMPL = False
 import wx.lib.scrolledpanel as scrolled
 import wx.lib.mixins.listctrl as listmix
 from pylab import *
 import numpy
+
+## try this to help pyinstaller find stuff
+#import matplotlib.numerix.fft
+#import matplotlib.numerix.linear_algebra
+#import matplotlib.numerix.ma
+#import matplotlib.numerix.mlab
+#import matplotlib.numerix.npyma
+#import matplotlib.numerix.random_array
+
 import Classes.mda as mda
+
 import string
 import Classes.mdaTree as mdaTree
+
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.figure import Figure
 HAVE_AXES3D = True
 try:
-
+#!    import matplotlib.axes3d as axes3d
     import mpl_toolkits.mplot3d.axes3d as axes3d
 except:
     HAVE_AXES3D = False
@@ -44,7 +72,7 @@ except:
 TIME_FORMAT = "%c" # Use Locale's time format
 DEBUG = False
 DIRLIST_TIME_MS = 10000
-HAVE_WXMPL = False
+
 # We're going to have positioner and detector checkbox lists, and we have to
 # keep their id's separate, but we also want the id's to correspond with 
 # indices in the data structure we get from readMDA.  When we need the id's
@@ -58,12 +86,10 @@ LINUX_PRINTING_COMMAND = 'lpr'
 # From Python Cookbook
 import re
 re_digits = re.compile(r'(\d+)')
-
 def embedded_numbers(s):
     pieces = re_digits.split(s)             # split into digits/nondigits
     pieces[1::2] = map(int, pieces[1::2])   # turn digits into numbers
     return pieces
-
 def sort_strings_with_embedded_numbers(alist):
     aux = [ (embedded_numbers(s), s) for s in alist ]
     aux.sort()
@@ -92,7 +118,6 @@ def dimensions(data):
         if (not isinstance(data[0][0][0], list)) and (not isinstance(data[0][0][0], tuple)):
             return dim
         return dim + 1
-
 
 def rowColumn(rows, columns, plotNum):
     thisRow = plotNum // columns
@@ -152,10 +177,10 @@ def sliceStartEnd(ix, width, imax):
     return (iStart, iEnd)
 
 def select2DSlice(data, indexList=None, widthList=None):
-    # print "select2DSlice: indexList=", indexList
+    #print "select2DSlice: indexList=", indexList
     dimension = dimensions(data)
     if dimension == 2:
-        # if not isinstance(data, numpy.ndarray):
+        #if not isinstance(data, numpy.ndarray):
         #    data = numpy.array(data)
         return data
     elif dimension == 3:
@@ -205,7 +230,7 @@ def select2DAxisData(frame, dimension, indexList):
     if indexList == None:
         indexList = [None, None, None]
 
-    # print "select2DAxisData: dimension=", dimension, " indexList=", indexList
+    #print "select2DAxisData: dimension=", dimension, " indexList=", indexList
     nIx = min(dimension, len(indexList)) # indexList may have unneeded element
     for i in range(1, nIx+1):
         if indexList[i-1] == None:
@@ -526,12 +551,11 @@ class CanvasFrame(wx.Frame):
                 if a == event.inaxes:
                     self.axNum = i
                     break
-            print int(event.xdata + 0.4), int(event.ydata + 0.4)
-            print self.frame.data[1].curr_pt, self.frame.data[2].curr_pt
+#!            print int(event.xdata + 0.4), int(event.ydata + 0.4)
             if (USE_OLD_PUBLISHER):
-                self.dataPublisher.sendMessage("new_pixel_selected", (self.frame.data[2].curr_pt, int(event.xdata + 0.4), int(event.ydata + 0.4)))
+                self.dataPublisher.sendMessage(("new_pixel_selected"), (self.frame.data[2].curr_pt,int(event.xdata + 0.4), int(event.ydata + 0.4)))
             else:
-                self.dataPublisher.sendMessage("new_pixel_selected", message=(self.frame.data[2].curr_pt, int(event.xdata + 0.4), int(event.ydata + 0.4)))
+                self.dataPublisher.sendMessage(("new_pixel_selected"), message=(self.frame.data[2].curr_pt,int(event.xdata + 0.4), int(event.ydata + 0.4)))
 
             if event.button == 3:
                 # only do this part the first time so the events are only bound once
@@ -852,10 +876,9 @@ class CanvasFrame(wx.Frame):
         t1 = time.time()
         frame = self.frame
         self.SetTitle(frame.fileName)
-        fig = self.get_figure() # return self.plotPanel.figure
+        fig = self.get_figure()
         fig.clf()
 
-        # Should all detectors be plotted or just a selection?
         if self.frame.plotEverything:
             numPlots = len(frame.detShowListList[self.dataDim]) + len(frame.posShowListList[self.dataDim])
         else:
@@ -2250,6 +2273,8 @@ class MainPanel(wx.Panel):
         self.bottomWin.SetDefaultSize((-1, 25))
         self.bottomWin.SetOrientation(wx.LAYOUT_HORIZONTAL)
         self.bottomWin.SetAlignment(wx.LAYOUT_BOTTOM)
+        # Doesn't work; have to do it by hand in self.OnSashDrag()
+        #self.bottomWin.SetMinimumSizeY(30)
 
         self.topWin = wx.SashLayoutWindow(self, -1, (-1,-1), (-1, -1), wx.SW_3D)
         (x,y) = self.parent.GetClientSize()
@@ -2336,17 +2361,11 @@ class TopFrame(wx.Frame):
         self.plotFrameSurface = None
 
         for i in range(NUMDIMENSION):
-            # Append an array size NUMDET, with each element having a value of zero.
             self.fullDetShowListList.append([0]*NUMDET)
-            # Append an array size NUMPOS, with each element having a value of zero.
             self.fullPosShowListList.append([0]*NUMPOS)
-            # Append the value of AXIS_IS_INDEX.
             self.fullPosAxisList.append(AXIS_IS_INDEX)
-            # Append an empty list.
             self.detShowListList.append([])
-            # Append an empty list.
             self.posShowListList.append([])
-            # Append the value of AXIS_IS_INDEX.
             self.posAxisList.append(AXIS_IS_INDEX)
 
         # init vars controlled by menu selections
@@ -2367,27 +2386,24 @@ class TopFrame(wx.Frame):
         self.plotEverything = False
 
         # make menuBar
-        # This is the File menu.
         menu1 = wx.Menu()
         menu1.Append(101, "Survey MDA files", "Gather info about MDA files in a directory")
         menu1.Append(102, "Open MDA file", "Open an MDA file")
         menu1.Append(103, "Save as ASCII file", "Save current MDA file as an ASCII file")
         menu1.Append(104, "Show file as tree", "Display a tree view of the current MDA file")
         menu1.Append(wx.ID_EXIT, "E&xit\tAlt-X", "Exit this application")
+        self.Bind(wx.EVT_MENU, self.on_surveyMDA_MenuSelection, id=101)
+        self.Bind(wx.EVT_MENU, self.on_openFile_MenuSelection, id=102)
+        self.Bind(wx.EVT_MENU, self.on_saveAscii_MenuSelection, id=103)
+        self.Bind(wx.EVT_MENU, self.on_showTree_MenuSelection, id=104)
+        self.Bind(wx.EVT_MENU, self.on_Exit_Event, id=wx.ID_EXIT)
 
-        self.Bind(wx.EVT_MENU, self.on_surveyMDA_MenuSelection, id=101) # File menu "Survey MDA files"
-        self.Bind(wx.EVT_MENU, self.on_openFile_MenuSelection, id=102) # File menu "Open MDA file"
-        self.Bind(wx.EVT_MENU, self.on_saveAscii_MenuSelection, id=103) # File menu "Save as ASCII file"
-        self.Bind(wx.EVT_MENU, self.on_showTree_MenuSelection, id=104) # File menu "Show file as tree"
-        self.Bind(wx.EVT_MENU, self.on_Exit_Event, id=wx.ID_EXIT) # File menu "Exit"
-
-        # This is the Options menu.
         menu2 = wx.Menu()
         menu2.Append(201, "Read 3D Data", "Read 3D data (else only 1D and 2D)", wx.ITEM_CHECK)
         item = menu2.Append(203, "AutoUpdatePlots", "Selecting a detector updates displayed plots", wx.ITEM_CHECK)
         item.Check(self.autoUpdatePlots)
 
-        # This is the 1D plots submenu.
+
         subMenu = wx.Menu()
         item = subMenu.Append(2041, "lines", "plot lines", wx.ITEM_CHECK)
         item.Check(self.plot1D_lines)
@@ -2402,7 +2418,6 @@ class TopFrame(wx.Frame):
         item.Check(self.plot1D_withSharedAxes)
         menu2.AppendMenu(204, "1D plots", subMenu)
 
-        # This is the 2D plots submenu.
         subMenu = wx.Menu()
         item = subMenu.Append(2051, "with axes", "Show axes, ticks, and axis labels", wx.ITEM_CHECK)
         item.Check(self.plot2D_withAxes)
@@ -2416,29 +2431,25 @@ class TopFrame(wx.Frame):
         item.Check(self.plot2D_autoAspect)
         menu2.AppendMenu(205, "2D plots", subMenu)
 
-        # Add to the Options menu.
         item = menu2.Append(206, "Show crosshair", "Show crosshair cursor on plots", wx.ITEM_CHECK)
         item.Check(self.showCrossHair)
 
-        # Add to the Options menu.
         item = menu2.Append(207, "Plot Everything", "Ignore selections", wx.ITEM_CHECK)
         item.Check(self.plotEverything)
 
-        self.Bind(wx.EVT_MENU, self.on_read3D_Data_MenuSelection, id=201) # Options Menu "Read 3D Data"
-        self.Bind(wx.EVT_MENU, self.on_autoUpdatePlots_MenuSelection, id=203) # Options Menu "AutoUpdatePlots"
-        self.Bind(wx.EVT_MENU_RANGE, self.on_Plot1D_MenuSelection, id=2041, id2=2046) # Options Menu, 1D Plots submenu, "lines" or "with shared axes"
-        self.Bind(wx.EVT_MENU_RANGE, self.on_plot2D_MenuSelection, id=2051, id2=2055) # Options Menu, 2D Plots submenu, "with axes" or " auto aspect"
-        self.Bind(wx.EVT_MENU, self.on_showCrossHair_MenuSelection, id=206) # Options Menu "Show crosshair"
-        self.Bind(wx.EVT_MENU, self.on_plotEverything_MenuSelection, id=207) # Options Menu "Plot Everything"
+        self.Bind(wx.EVT_MENU, self.on_read3D_Data_MenuSelection, id=201)
+        self.Bind(wx.EVT_MENU, self.on_autoUpdatePlots_MenuSelection, id=203)
+        self.Bind(wx.EVT_MENU_RANGE, self.on_Plot1D_MenuSelection, id=2041, id2=2046)
+        self.Bind(wx.EVT_MENU_RANGE, self.on_plot2D_MenuSelection, id=2051, id2=2055)
+        self.Bind(wx.EVT_MENU, self.on_showCrossHair_MenuSelection, id=206)
+        self.Bind(wx.EVT_MENU, self.on_plotEverything_MenuSelection, id=207)
 
-        # Debug menu
+
         menu3 = wx.Menu()
         item = menu3.Append(301, "Debug", "Execute debug statements", wx.ITEM_CHECK)
         item.Check(DEBUG)
+        self.Bind(wx.EVT_MENU, self.on_Debug_MenuSelection, id=301)
 
-        self.Bind(wx.EVT_MENU, self.on_Debug_MenuSelection, id=301) # Debug menu "Debug"
-
-        # Create a menu bar and add all menus to it.
         menuBar = wx.MenuBar()
         menuBar.Append(menu1, "&File")
         menuBar.Append(menu2, "&Options")
@@ -2449,7 +2460,6 @@ class TopFrame(wx.Frame):
         statusBar = self.CreateStatusBar()
         statusBar.SetFieldsCount(2)
 
-        # Create two main panels divided by a sash.
         self.mainPanel = MainPanel(self)
         self.fillMainPanel()
         

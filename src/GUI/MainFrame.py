@@ -9,9 +9,6 @@ import os
 import sys
 import PlotFrame3D
 import matplotlib
-import logging
-import Classes.mproc as mproc
-import multiprocessing as mp
 matplotlib.use('WXAgg')
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -34,6 +31,7 @@ except:
     USE_OLD_PUBLISHER = False
     from wx.lib.pubsub import pub
 
+
 class MainFrame(wx.Frame):
     '''
     Create a frame to hold all other objects.
@@ -48,8 +46,6 @@ class MainFrame(wx.Frame):
                 
         self.data = XYDataArray()
         self.plotFile = None
-        self.numThreadsDone = 0
-        self.maxNumThreads = 10
         
         # Create a Publisher object and subscribe to two topics
         if USE_OLD_PUBLISHER:
@@ -241,65 +237,19 @@ class MainFrame(wx.Frame):
                 fileName = listItem.GetText()
                 checkedFileList.append(fileName)
 
-        self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetRange(len(checkedFileList))
+        numCheckedFiles = len(checkedFileList)
+        roiSums = zeros((numRois, numCheckedFiles), dtype=float32)
 
-#        numCheckedFiles = len(checkedFileList)
-#        chunkSize = int(numCheckedFiles / 10)
-#        if chunkSize < 1:
-#            chunkSize = numCheckedFiles
-#        roiSums = zeros((numRois, numCheckedFiles), dtype=float32)
-#        print "Num rois=%d, num files=%d" % (numRois, numCheckedFiles)
         # Create a thread to do the work of opening the files and summing the data
-#        workerList = []
-#        start = 0
-#        end = chunkSize - 1
-#        moreChunks = True
-
-#        for i in range(10):
-#            if moreChunks:
-#                print "Chunk start=%d, end=%d" % (start, end)
-#                workerList.append(DataSummationThread(self, roiList, checkedFileList, path, start, end, roiSums))
-#                start = end
-#                end = end + chunkSize
-#                if end > numCheckedFiles:
-#                    end = numCheckedFiles - 1
-#                    moreChunks = False
-
-#        for i in range(len(workerList)):
-#            workerList[i].start()
-        worker = DataSummationThread(self, self.SumData, roiList, checkedFileList, path)
+        worker = DataSummationThread(self, roiList, fileList, path)
         worker.start()
-        return
-
-    def SumData(self, roi_list, file_list, file_path, istart, iend):
-        logger = mp.get_logger()
-        mp.log_to_stderr(logging.INFO)
-
-        roi_sums = mproc.SHARED_ARRAY
-        data_array = XYDataArray()
-        num_rois = len(roi_list)
-        print "Reading files from %d to %d" % (istart, iend)
-        logger.info("Reading files from %d to %d" % (istart, iend))
-        for i in range (istart, iend):
-
-            data_array.CreateArrays(os.path.join(self._file_path, self._fileList[i]))
-
-            for j in range(num_rois):
-                print "Summing roi %d from file %d" % (j, i)
-                logger.info("Summing roi %d from file %d" % (j, i))
-                roi_sums[j][i] = roi_sums[j][i] + data_array.SumROIData(roi_list[j].GetStart(), roi_list[j].GetEnd())
-
+        
         return
     
     def PlotSumData(self, evt):
         '''
         Create plots of the summed ROI data for each ROI.
         '''
-#
-#        self.numThreadsDone = self.numThreadsDone + 1
-        print "Thread #%d finished." % self.numThreadsDone
-#        if self.numThreadsDone == 10:
-#            self.numThreadsDone = 0
         
         # Get the number of rows and columns in the scan.
         try:
@@ -324,7 +274,7 @@ class MainFrame(wx.Frame):
             plotFrame = PlotFrame3D.PlotFrame3D(self, "ROI %d" % j, numRows, numColumns, z_values, maxVal, minVal)
             plotFrame.Show(True)
         
-        # Reset the progress bar back to zero.
+        # Reset the progress bar back to zero.    
         self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetValue(0)
             
         return
@@ -332,7 +282,7 @@ class MainFrame(wx.Frame):
     def UpdateProgressBar(self, evt):
         
         self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetValue(evt.GetValue())
-
+        
         return
     
     def OnCloseButtonClick(self, event):

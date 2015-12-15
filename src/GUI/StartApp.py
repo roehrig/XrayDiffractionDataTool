@@ -37,7 +37,5 @@ class MyApp(wx.App):
         
         return True
 
-if __name__ == '__main__':
-
-    app = MyApp(False)
-    app.MainLoop()
+app = MyApp(False)
+app.MainLoop()
