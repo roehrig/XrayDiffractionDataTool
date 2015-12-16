@@ -26,17 +26,17 @@ class PlotFrame3D(wx.Frame):
         wx.Frame.__init__(self, parent, title=title, pos=(200,200), size=(200,200))
         
         self.x_values = np.empty([numRows,numColumns])
-        self.y_values = np.zeros([numColumns,numRows])
+        self.y_values = np.zeros([numRows,numColumns])
         self.z_values = z_values
         self.minValue = minValue
         self.maxValue = maxValue
         
         for i in range(numRows):
             self.x_values[i] = np.arange(1,numColumns + 1)        
-            
-        for i in range(numColumns):
+
+        for i in range(numRows):
             self.y_values[i] = self.y_values[i] + (i + 1)
-        
+
         self.figure = Figure((5,5), 150)
         self.canvas = FigureCanvas(self, -1, self.figure)
         self.subplot = self.figure.add_subplot(111)

@@ -34,7 +34,7 @@ class MyApp(wx.App):
         mdaWindow.height = (vP + vS/2)*2
         mdaWindow.SetMaxSize((mdaWindow.width, mdaWindow.height))
         mdaWindow.Show(True)
-        
+
         return True
 
 app = MyApp(False)
