@@ -333,7 +333,7 @@ class MainFrame(wx.Frame):
     def UpdateProgressBar(self, evt):
         
         self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetValue(evt.GetValue())
-
+        
         return
     
     def OnCloseButtonClick(self, event):
