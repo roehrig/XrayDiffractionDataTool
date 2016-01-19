@@ -9,13 +9,14 @@ import os
 import sys
 import PlotFrame3D
 import matplotlib
+import numpy
 import logging
 import Classes.mproc as mproc
 import multiprocessing as mp
 matplotlib.use('WXAgg')
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.figure import Figure
-from numpy import *
+#from numpy import *
 from checklistcontrol import CheckListControl as CLC
 from GrowableSectionPanel import DynamicTextControlPanel
 from Classes.filelistbuilder import FileListBuilder
@@ -56,10 +57,12 @@ class MainFrame(wx.Frame):
             self.dataPublisher = Publisher()
             self.dataPublisher.subscribe(self.NewScanLoaded, "new_scan_dimensions")
             self.dataPublisher.subscribe(self.ShowPixelData, "new_pixel_selected")
+            self.dataPublisher.subscribe(self.UpdateProgressBar, "update_progress_bar")
         else:
             self.dataPublisher = pub.getDefaultPublisher()
             self.dataPublisher.subscribe(self.NewScanLoaded, "new_scan_dimensions")
             self.dataPublisher.subscribe(self.ShowPixelData, "new_pixel_selected")
+            self.dataPublisher.subscribe(self.UpdateProgressBar, "update_progress_bar")
 
         # Create the fileTree variable so that it exists when the plottingPanel is created.
         self.fileTree = None
@@ -244,64 +247,17 @@ class MainFrame(wx.Frame):
         # Set the range of the progress bar to be the number of files that will be summed.
         self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetRange(len(checkedFileList))
 
-#        numCheckedFiles = len(checkedFileList)
-#        chunkSize = int(numCheckedFiles / 10)
-#        if chunkSize < 1:
-#            chunkSize = numCheckedFiles
-#        roiSums = zeros((numRois, numCheckedFiles), dtype=float32)
-#        print "Num rois=%d, num files=%d" % (numRois, numCheckedFiles)
-        # Create a thread to do the work of opening the files and summing the data
-#        workerList = []
-#        start = 0
-#        end = chunkSize - 1
-#        moreChunks = True
-
-#        for i in range(10):
-#            if moreChunks:
-#                print "Chunk start=%d, end=%d" % (start, end)
-#                workerList.append(DataSummationThread(self, roiList, checkedFileList, path, start, end, roiSums))
-#                start = end
-#                end = end + chunkSize
-#                if end > numCheckedFiles:
-#                    end = numCheckedFiles - 1
-#                    moreChunks = False
-
-#        for i in range(len(workerList)):
-#            workerList[i].start()
-        worker = DataSummationThread(self, self.SumData, roiList, checkedFileList, path)
+        worker = DataSummationThread(self, roiList, checkedFileList, path, self.UpdateProgressBar)
         worker.start()
         return
 
-    def SumData(self, roi_list, file_list, file_path, istart, iend):
-        logger = mp.get_logger()
-        mp.log_to_stderr(logging.INFO)
-
-        roi_sums = mproc.SHARED_ARRAY
-        data_array = XYDataArray()
-        num_rois = len(roi_list)
-        print "Reading files from %d to %d" % (istart, iend)
-        logger.info("Reading files from %d to %d" % (istart, iend))
-        for i in range (istart, iend):
-
-            data_array.CreateArrays(os.path.join(self._file_path, self._fileList[i]))
-
-            for j in range(num_rois):
-                print "Summing roi %d from file %d" % (j, i)
-                logger.info("Summing roi %d from file %d" % (j, i))
-                roi_sums[j][i] = roi_sums[j][i] + data_array.SumROIData(roi_list[j].GetStart(), roi_list[j].GetEnd())
-
-        return
-    
     def PlotSumData(self, evt):
         '''
         Create plots of the summed ROI data for each ROI.
         '''
-#
-#        self.numThreadsDone = self.numThreadsDone + 1
-        print "Thread #%d finished." % self.numThreadsDone
-#        if self.numThreadsDone == 10:
-#            self.numThreadsDone = 0
-        
+
+#        print "Summing thread finished."
+
         # Get the number of rows and columns in the scan.
         try:
             numRows = int(self.fileTree.buttonPanel.fileButtonPanel.numRowsTextCtrl.GetValue())
@@ -312,15 +268,16 @@ class MainFrame(wx.Frame):
         
         # Get the arrays that need to be plotted.
         roiSums = evt.GetValue()
+
         # Get the number of ROIs that the user set up.
         numRois = len(self.fileTree.buttonPanel.roiPanel.GetRoiList())
         
         # For each ROI, plot the sum of the data.
         for j in range(numRois):
             # Reshape the ROI from a 1D array to a 2D array
-            z_values = reshape(roiSums[j], (numRows, numColumns), order='C')
-            maxVal = amax(roiSums[j])
-            minVal = amin(roiSums[j])
+            z_values = numpy.reshape(roiSums[j], (numRows, numColumns), order='C')
+            maxVal = numpy.amax(roiSums[j])
+            minVal = numpy.amin(roiSums[j])
             # Create a wx.Frame object to display the plot.
             plotFrame = PlotFrame3D.PlotFrame3D(self, "ROI %d" % j, numRows, numColumns, z_values, maxVal, minVal)
             plotFrame.Show(True)
@@ -330,10 +287,13 @@ class MainFrame(wx.Frame):
             
         return
     
-    def UpdateProgressBar(self, evt):
+#    def UpdateProgressBar(self, evt):
+    def UpdateProgressBar(self, message):
         
-        self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetValue(evt.GetValue())
-        
+#        self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetValue(evt.GetValue())
+        old_value = self.fileTree.buttonPanel.fileButtonPanel.progressGauge.GetValue()
+        self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetValue(old_value + message)
+#        print "Setting progress bar to %d" % (old_value + message)
         return
     
     def OnCloseButtonClick(self, event):
