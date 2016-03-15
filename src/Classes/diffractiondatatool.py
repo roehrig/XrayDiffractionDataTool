@@ -28,6 +28,7 @@ class XYDataArray(object):
         self.data_source = None
         self.array_size = 0
         self.data_values = None
+        self.data_no_background = None
         
         return
     
@@ -64,6 +65,38 @@ class XYDataArray(object):
                 
         except IOError as e:
             return
+
+        return
+
+    def WriteFileWithoutBackground(self, filename):
+        '''
+        Create a new file that contains the spectrum with the background
+        subtracted from it.  Use the same file name and append it with
+        '_nobackground'.
+        '''
+
+        try:
+            with open(filename, 'w') as fileHandle:
+#                fileHandle.write(self.data_source + '\n')
+#                fileHandle.write(self.x_label + '\n')
+#                fileHandle.write(self.y_label + '\n')
+#                fileHandle.write(str(self.array_size) + '\n')
+
+                file_header = self.data_source + '\n'
+                file_header = file_header + self.x_label + '\n'
+                file_header = file_header + self.y_label + '\n'
+                file_header = file_header + str(self.array_size) + '\n'
+                temp_data = np.zeros((2, self.array_size))
+                temp_data[0] = self.data_values[0]
+                temp_data[1] = self.data_no_background
+
+                np.savetxt(filename,temp_data.transpose(), fmt='%.7e', delimiter='  ', header=file_header, comments='')
+#                np.savetxt(filename,temp, fmt='%.7e', delimiter='  ')
+        except IOError as e:
+            return
+
+
+        return
         
     def GetDataArray(self):
         return self.data_values
@@ -225,5 +258,7 @@ class XYDataArray(object):
                 spectra[indices[0][i]] = background[i]
             else:
                 spectra[indices[0][i]] = 0
+
+        self.data_no_background = spectra
 
         return spectra

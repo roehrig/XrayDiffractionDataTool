@@ -51,6 +51,7 @@ class MainFrame(wx.Frame):
         self.plotFile = None
         self.numThreadsDone = 0
         self.maxNumThreads = 10
+        self.index = 0
         
         # Create a Publisher object and subscribe to two topics
         if USE_OLD_PUBLISHER:
@@ -80,6 +81,7 @@ class MainFrame(wx.Frame):
         
         self.Bind(wx.EVT_BUTTON, self.OnCloseButtonClick, self.fileTree.buttonPanel.fileButtonPanel.exitButton)
         self.Bind(wx.EVT_BUTTON, self.OnPlotButtonClick, self.fileTree.buttonPanel.fileButtonPanel.plotDataButton)
+        self.Bind(wx.EVT_BUTTON, self.OnSaveFileButtonClick, self.fileTree.buttonPanel.fileButtonPanel.saveAsFileButton)
         self.Bind(wx.EVT_BUTTON, self.OnSumDataButtonClick, self.fileTree.buttonPanel.fileButtonPanel.sumDataButton)
         self.Bind(EVT_SUM_DATA, self.PlotSumData)
         self.Bind(EVT_UPDATE_PROGRESS, self.UpdateProgressBar)
@@ -136,8 +138,8 @@ class MainFrame(wx.Frame):
             valueY = message[2]
         
         # Calculate the index of the file for the desired pixel.
-        index = ((sizeX * valueY) + valueX) 
-        self.PlotDiffractionFile(index)
+        self.index = ((sizeX * valueY) + valueX)
+        self.PlotDiffractionFile(self.index)
         
         return
     
@@ -168,18 +170,30 @@ class MainFrame(wx.Frame):
                 i = i + 1
         
         return
+
+    def OnSaveFileButtonClick(self, event):
+
+        # Get the path to the file and the file name
+        path = self.fileTree.dirPanel.dirControl.GetPath()
+        listItem = self.fileTree.filePanel.fileListCtrl.GetItem(self.index, 1)
+        filename = listItem.GetText()
+
+        filename = filename + '_nobackground'
+        self.data.WriteFileWithoutBackground(os.path.join(path, filename))
+
+        return
     
     def OnPlotButtonClick(self, event):
         '''
         Creates a 2D plot when the user clicks the button.
         '''
         
-        index = self.fileTree.filePanel.fileListCtrl.GetFocusedItem()
+        self.index = self.fileTree.filePanel.fileListCtrl.GetFocusedItem()
         if self.fileTree.buttonPanel.fileButtonPanel.backgroundCheckBox.IsChecked():
             subtract_background = True
         else:
             subtract_background = False
-        self.PlotDiffractionFile(index, subtract_background)
+        self.PlotDiffractionFile(self.index, subtract_background)
                
         return
     
@@ -405,7 +419,7 @@ class FileTreePanel(wx.Panel):
         splitter.SplitVertically(self.dirPanel, self.filePanel, 0)
 
         self.fileFilterBox = wx.ComboBox(self, -1, value=".*", size=wx.Size(100,30),
-                                         choices=[".*", ".int", ".tif"], style=wx.CB_READONLY)
+                                         choices=[".*", ".int", ".int_nobackground", ".tif"], style=wx.CB_READONLY)
         
         self.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnDirSelectionChanged, self.dirPanel.dirControl.GetTreeCtrl())
         self.Bind(wx.EVT_BUTTON, self.OnSelectAllButtonClick, self.buttonPanel.fileButtonPanel.selectAllButton)
@@ -644,6 +658,7 @@ class FileButtonPanel(wx.Panel):
         self.numColumnsTextCtrl = wx.TextCtrl(self, -1, " ",size = wx.Size(60,30), style=wx.SIMPLE_BORDER)
         
         self.backgroundCheckBox = wx.CheckBox(self, -1, "Remove background", size=wx.Size(150,20))
+        self.saveAsFileButton = wx.Button(self, -1, "Save Without Background",size=wx.Size(200,30))
         
         self.progressGauge = wx.Gauge(self, -1, range=2500, size=wx.Size(200,30))
         
@@ -655,6 +670,7 @@ class FileButtonPanel(wx.Panel):
         self.selectRangeButton.SetToolTipString("Select a range of files listed for summing ROIs.")
         self.clearAllButton.SetToolTipString("Deselect all files.")
         self.plotDataButton.SetToolTipString("Show file data in a 2D plot.")
+        self.saveAsFileButton.SetToolTipString("Save plotted file with background subtracted")
         self.sumDataButton.SetToolTipString("Sum all ROI data in selected files and create plots.")
 #        self.sumData2DButton.SetToolTipString("Sum all ROI data in selected files and create 2D plots.")
         self.exitButton.SetToolTipString("Exit the application.")
@@ -678,6 +694,9 @@ class FileButtonPanel(wx.Panel):
         sizer3 = wx.BoxSizer(wx.HORIZONTAL)
         sizer3.Add(self.plotDataButton, 0, wx.ALIGN_CENTER | wx.LEFT | wx.RIGHT, border=5)
         sizer3.Add(self.backgroundCheckBox, 0, wx.ALIGN_CENTER)
+
+        sizer4 = wx.BoxSizer(wx.HORIZONTAL)
+        sizer4.Add(self.saveAsFileButton, 0, wx.ALIGN_CENTER)
         
         panelSizer = wx.BoxSizer(wx.VERTICAL)
         
@@ -686,6 +705,7 @@ class FileButtonPanel(wx.Panel):
         panelSizer.Add(self.line1, 0, wx.ALIGN_CENTER)
         panelSizer.Add(sizer2, 0, wx.ALIGN_CENTER)
         panelSizer.Add(sizer3, 0, wx.ALIGN_CENTER)
+        panelSizer.Add(sizer4, 0, wx.ALIGN_CENTER)
         panelSizer.Add(self.line2, 0, wx.ALIGN_CENTER)
         panelSizer.Add(self.sumDataButton, 0, wx.ALIGN_CENTER)
         panelSizer.Add(self.progressGauge, 0, wx.ALIGN_CENTER)

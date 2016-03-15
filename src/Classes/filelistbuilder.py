@@ -46,7 +46,7 @@ class FileListBuilder(object):
                         info = os.stat(fileName)
                         fileSize = info.st_size
                         self.fileList.append((os.path.split(fileName)[1], fileSize))
-                
+
         except OSError:
             return None
             
@@ -83,7 +83,7 @@ class FileListBuilder(object):
                     
         except OSError:
             return None
-               
+
         self.fileList.sort(cmp=None, key=lambda fileName: fileName[0])
-                
+
         return self.fileList
