@@ -15,6 +15,7 @@ import Classes.mproc as mproc
 import multiprocessing as mp
 matplotlib.use('WXAgg')
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
+from matplotlib.backends.backend_wx import NavigationToolbar2Wx as Toolbar
 from matplotlib.figure import Figure
 #from numpy import *
 from checklistcontrol import CheckListControl as CLC
@@ -338,12 +339,16 @@ class PlottingPanel(wx.Panel):
         self.figure = Figure((5,5), 150)
         self.subplot = self.figure.add_subplot(111)
         self.canvas = FigureCanvas(self, -1, self.figure)
+
+        self.toolbar = Toolbar(self.canvas)
+        self.toolbar.Realize()
         
         # Bind a draw event to a function
         self.canvas.mpl_connect('draw_event', self.GetROIBounds)
         
         panelSizer = wx.BoxSizer(wx.VERTICAL)
         panelSizer.Add(self.canvas, 1, wx.EXPAND)
+        panelSizer.Add(self.toolbar, 0, wx.LEFT | wx.EXPAND)
         
         self.SetSizer(panelSizer)
         self.Fit()
