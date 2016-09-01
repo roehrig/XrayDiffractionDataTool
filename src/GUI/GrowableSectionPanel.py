@@ -7,7 +7,9 @@ Created on Nov 13, 2012
 import wx
 from random import *
 from wx.lib.scrolledpanel import ScrolledPanel
-from Classes.graphingtools import ROI
+from Classes.graphingtools import LineROI
+from Classes.graphingtools import RectROI
+from Classes import constants
 
 ########################################################################
 class TextControlPanel (wx.Panel):
@@ -31,13 +33,19 @@ class TextControlPanel (wx.Panel):
         
         self._parentPanel = parent
         self._sectionNumber = sectionNumber
+        self._roi_type = self._parentPanel.GetRoiType()
         self.plot = plot
         self.red = random()
         self.blue = random()
         self.green = random()
         self.color = wx.Colour((self.red * 255), (self.green * 255), (self.blue * 255))
         self.labelColor = wx.Colour(255,255,255)
-        self.roi = ROI(self.plot[0], self.plot[1], self.plot[2], self.red, self.green, self.blue)
+        if self._roi_type == constants.LINE:
+            self.color = wx.Colour((self.red * 255), (self.green * 255), (self.blue * 255))
+            self.roi = LineROI(self.plot[0], self.plot[1], self.plot[2], self.red, self.green, self.blue)
+        else:
+            self.color = wx.Colour((self.red * 255), (self.green * 255), 0)
+            self.roi = RectROI(self.plot[0], self.plot[1], self.plot[2], self.red, self.green, 0)
         roiList.append(self.roi)
         
         return
@@ -86,12 +94,13 @@ class SingleTextControlPanel (TextControlPanel):
         self.sectionNumberLabel = wx.StaticText(self, -1, textLabel + " %s" % self._sectionNumber, style=wx.ALIGN_CENTER_VERTICAL | wx.SIMPLE_BORDER)
         
         self.sectionTxtCtrl = wx.TextCtrl(self, -1, "", size=wx.Size(width,height), style=wx.SIMPLE_BORDER)
-        
+        self.SetBackgroundColour(self.color)
         textCtrlList.append(self.sectionTxtCtrl)
         
         self.removeButton = wx.Button(self, -1, "Remove")
         self.removeButton.SetToolTipString("Remove %s" % textLabel)
         self.Bind(wx.EVT_BUTTON, self.OnRemoveButtonClick, self.removeButton)
+        self.Bind(wx.EVT_CHAR, self.OnDataEntry, self.sectionTxtCtrl)
         
         panelSizer.Add(self.removeButton, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 2)
         panelSizer.Add(self.sectionNumberLabel, 0, wx.EXPAND| wx.LEFT | wx.RIGHT, 2)
@@ -102,6 +111,10 @@ class SingleTextControlPanel (TextControlPanel):
         self.Fit()
         self.Layout()
         
+        return
+
+    def OnDataEntry(self, event):
+
         return
     
 ########################################################################
@@ -125,16 +138,16 @@ class DualTextControlPanel (TextControlPanel):
 
         TextControlPanel.__init__(self, parent, plot, roiList, sectionNumber)
         
-        self._parentPanel = parent
-        self._sectionNumber = sectionNumber
+#        self._parentPanel = parent
+#        self._sectionNumber = sectionNumber
         
         panelSizer = wx.BoxSizer(wx.HORIZONTAL)
         
         self.sectionNumberLabel = wx.StaticText(self, -1, textLabel + " %s" % self._sectionNumber,
                                                 style=wx.ALIGN_CENTER_VERTICAL | wx.SIMPLE_BORDER | wx.ALIGN_CENTER_HORIZONTAL)
         
-        self.firstSectionTxtCtrl = wx.TextCtrl(self, -1, "", size=wx.Size(width,height), style=wx.SIMPLE_BORDER)
-        self.secondSectionTxtCtrl = wx.TextCtrl(self, -1, "", size=wx.Size(width,height), style=wx.SIMPLE_BORDER)
+        self.firstSectionTxtCtrl = wx.TextCtrl(self, 200, "", size=wx.Size(width,height), style=wx.SIMPLE_BORDER)
+        self.secondSectionTxtCtrl = wx.TextCtrl(self, 201, "", size=wx.Size(width,height), style=wx.SIMPLE_BORDER)
         self.SetBackgroundColour(self.color)
         self.sectionTxtCtrl = (self.firstSectionTxtCtrl, self.secondSectionTxtCtrl)
         
@@ -143,7 +156,10 @@ class DualTextControlPanel (TextControlPanel):
         self.removeButton = wx.Button(self, -1, "Remove")
         self.removeButton.SetToolTipString("Remove %s" % textLabel)
         self.Bind(wx.EVT_BUTTON, self.OnRemoveButtonClick, self.removeButton)
-        
+#        self.Bind(wx.EVT_CHAR, self.OnDataEntry, self.firstSectionTxtCtrl)
+#        self.Bind(wx.EVT_CHAR, self.OnDataEntry, self.secondSectionTxtCtrl)
+        self.Bind(wx.EVT_CHAR_HOOK, self.OnDataEntry)
+
         panelSizer.Add(self.removeButton, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 2)
         panelSizer.Add(self.sectionNumberLabel, 0, wx.EXPAND| wx.LEFT | wx.RIGHT, 2)
         panelSizer.Add(self.firstSectionTxtCtrl, 1, wx.EXPAND| wx.LEFT | wx.RIGHT, 2)
@@ -154,6 +170,28 @@ class DualTextControlPanel (TextControlPanel):
         self.Fit()
         self.Layout()
         
+        return
+
+    def OnDataEntry(self, event):
+        key_pressed = event.GetKeyCode()
+
+        if key_pressed == wx.WXK_RETURN:
+            if self._roi_type == constants.RECTANGLE:
+                if event.GetId() == 200:
+                    coords = self.firstSectionTxtCtrl.GetValue().split(',')
+                    x0 = int(coords[0])
+                    y0 = int(coords[1])
+                    self.roi.SetXY(x0, y0, corner=1)
+                if event.GetId() == 201:
+                    coords = self.secondSectionTxtCtrl.GetValue().split(',')
+                    x1 = int(coords[0])
+                    y1 = int(coords[1])
+                    self.roi.SetXY(x1, y1, corner=2)
+
+                self.roi.EditROI()
+        else:
+            event.Skip()
+
         return
         
 ########################################################################
@@ -201,6 +239,12 @@ class TextControlPanelChooser():
             panel = DualTextControlPanel(parentObject, label, plot, controlList, roiList, controlWidth, controlHeight, sectionNum)
             
         return panel
+
+    def ChangeNumCtrls(self, new_value):
+
+        self.numTextCtrls = new_value
+
+        return
     
 ########################################################################
 class DynamicTextControlPanel(ScrolledPanel):
@@ -228,6 +272,7 @@ class DynamicTextControlPanel(ScrolledPanel):
         self._textWidth = width
         self._textHeight = height
         self._panelType = panelType
+        self._roiType = constants.LINE
         self._plot = plot
         
         self._roiList = []
@@ -255,6 +300,26 @@ class DynamicTextControlPanel(ScrolledPanel):
         self.Layout()
         self.Fit()
         
+        return
+
+    def ClearAndReset(self, panel_type, roi_type):
+
+        for panel, text in zip(self._dynPanelList, self._textCtrlList):
+            panel.roi.RemoveLines()
+            self._roiList.remove(panel.roi)
+            # Remove the panel from the list of panels
+            self._dynPanelList.remove(panel)
+            # Remove the section text control object
+            self._textCtrlList.remove(text)
+
+            panel.Destroy()
+
+        self._panelType = panel_type
+        self._roiType = roi_type
+        self.chooser.ChangeNumCtrls(panel_type)
+
+        self.OnAddSection(wx.EVT_IDLE)
+
         return
         
     def OnAddSection(self, event):
@@ -313,5 +378,11 @@ class DynamicTextControlPanel(ScrolledPanel):
     
     def GetTextControlList(self):
         return self._textCtrlList
+
+    def GetPanelType(self):
+        return self._panelType
+
+    def GetRoiType(self):
+        return self._roiType
         
 ########################################################################

@@ -11,20 +11,24 @@ import PlotFrame3D
 import matplotlib
 import numpy
 import logging
+import Classes.constants as constants
 import Classes.mproc as mproc
 import multiprocessing as mp
 matplotlib.use('WXAgg')
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx as Toolbar
 from matplotlib.figure import Figure
+from matplotlib import cm
 #from numpy import *
 from checklistcontrol import CheckListControl as CLC
 from GrowableSectionPanel import DynamicTextControlPanel
 from Classes.filelistbuilder import FileListBuilder
 from Classes.diffractiondatatool import XYDataArray
+from Classes.diffractiondatatool import TiffDatatArray
 from Classes.CustomEvents import EVT_SUM_DATA
 from Classes.CustomEvents import EVT_UPDATE_PROGRESS
 from Classes.CustomThreads import DataSummationThread
+from Classes.CustomThreads import ImagePixelSummationThread
 from Classes.graphingtools import ROI
 from wx.lib.scrolledpanel import ScrolledPanel
 
@@ -48,7 +52,8 @@ class MainFrame(wx.Frame):
         
         wx.Frame.__init__(self, parent, title=title, pos=(200,200), size=(600,600))
                 
-        self.data = XYDataArray()
+        self.data = None
+        self.plot_type = constants.TWOD_PLOT
         self.plotFile = None
         self.numThreadsDone = 0
         self.maxNumThreads = 10
@@ -78,7 +83,8 @@ class MainFrame(wx.Frame):
         self.frameSizer = wx.BoxSizer(wx.HORIZONTAL)
         
         self.frameSizer.Add(self.plottingPanel, 1, wx.EXPAND)
-        self.frameSizer.Add(self.fileTree, 1, wx.EXPAND)
+#        self.frameSizer.Add(self.fileTree, 1, wx.EXPAND)
+        self.frameSizer.Add(self.fileTree, 0)
         
         self.Bind(wx.EVT_BUTTON, self.OnCloseButtonClick, self.fileTree.buttonPanel.fileButtonPanel.exitButton)
         self.Bind(wx.EVT_BUTTON, self.OnPlotButtonClick, self.fileTree.buttonPanel.fileButtonPanel.plotDataButton)
@@ -153,22 +159,32 @@ class MainFrame(wx.Frame):
             i = 0
             roiList = self.fileTree.buttonPanel.roiPanel.GetRoiList()
             controlList = self.fileTree.buttonPanel.roiPanel.GetTextControlList()
-        
-            # For each set of ROI widgets, check to make sure that the lower value
-            # is less than the upper value.  If not, then switch them.
-            for ctrl in controlList:
-                bounds = roiList[i].GetLinePositions()
-                lowerBound = bounds[0]
-                upperBound = bounds[1]
+
+            if self.plot_type == constants.TWOD_PLOT:
+                # For each set of ROI widgets, check to make sure that the lower value
+                # is less than the upper value.  If not, then switch them.
+                for ctrl in controlList:
+                    roiList[i].SetNewLineData()
+                    bounds = roiList[i].GetLinePositions()
+                    lowerBound = bounds[0]
+                    upperBound = bounds[1]
             
-                if lowerBound < upperBound:
-                    ctrl[0].SetValue("%f" % lowerBound)
-                    ctrl[1].SetValue("%f" % upperBound)
-                else:
-                    ctrl[0].SetValue("%f" % upperBound)
-                    ctrl[1].SetValue("%f" % lowerBound)
+                    if lowerBound < upperBound:
+                        ctrl[0].SetValue("%f" % lowerBound)
+                        ctrl[1].SetValue("%f" % upperBound)
+                    else:
+                        ctrl[0].SetValue("%f" % upperBound)
+                        ctrl[1].SetValue("%f" % lowerBound)
                 
-                i = i + 1
+                    i = i + 1
+
+            if self.plot_type == constants.IMAGE:
+                for ctrl in controlList:
+                    dimensions = roiList[i].GetDimensions()
+                    ctrl[0].SetValue("%d,%d" % (dimensions[0], dimensions[1]))
+                    ctrl[1].SetValue("%d,%d" % (dimensions[2], dimensions[3]))
+
+                    i = i + 1
         
         return
 
@@ -190,10 +206,9 @@ class MainFrame(wx.Frame):
         '''
         
         self.index = self.fileTree.filePanel.fileListCtrl.GetFocusedItem()
-        if self.fileTree.buttonPanel.fileButtonPanel.backgroundCheckBox.IsChecked():
-            subtract_background = True
-        else:
-            subtract_background = False
+
+        subtract_background = self.fileTree.buttonPanel.fileButtonPanel.backgroundCheckBox.IsChecked()
+
         self.PlotDiffractionFile(self.index, subtract_background)
                
         return
@@ -210,13 +225,34 @@ class MainFrame(wx.Frame):
         path = self.fileTree.dirPanel.dirControl.GetPath()
         listItem = self.fileTree.filePanel.fileListCtrl.GetItem(index, 1)
         fileName = listItem.GetText()
+
+        if fileName.endswith('.tif'):
+            self.data = TiffDatatArray()
+            if not self.plot_type == constants.IMAGE:
+                self.fileTree.buttonPanel.roiPanel.ClearAndReset(2, constants.RECTANGLE)
+            self.plot_type = constants.IMAGE
+            self.fileTree.buttonPanel.fileButtonPanel.backgroundCheckBox.SetValue(False)
+        elif fileName.endswith('.int'):
+            self.data = XYDataArray()
+            if not self.plot_type == constants.TWOD_PLOT:
+                self.fileTree.buttonPanel.roiPanel.ClearAndReset(2, constants.LINE)
+            self.plot_type = constants.TWOD_PLOT
+        else:
+            dlg = wx.MessageDialog(parent=None, message="Error: Unknown file type",
+                                   caption="File Type Error", style=wx.OK | wx.ICON_ERROR)
+            dlg.ShowModal()
+            dlg.Destroy()
+            return
         
         # Read the file data
         self.data.CreateArrays(os.path.join(path, fileName))
-        if subtract_background:
-            self.data.CalculateBackground()
-        # Clear the old plot and draw the new one.
-        self.plottingPanel.draw(self.data, True)
+
+#        if subtract_background:
+#            self.data.CalculateBackground()
+#            self.plottingPanel.draw(self.data, False)
+#        else:
+            # Clear the old plot and draw the new one.
+        self.plottingPanel.draw(self.data, True, self.plot_type)
         
         # If there were ROI lines on a previous plot, redraw them.
         roiList = self.fileTree.buttonPanel.roiPanel.GetRoiList()
@@ -224,7 +260,7 @@ class MainFrame(wx.Frame):
             roi.SetNewAxes(self.plottingPanel.subplot)
             roi.AddLines()
     
-#        self.plottingPanel.draw(self.data, False)
+        self.plottingPanel.canvas.draw()
         
         return
     
@@ -243,7 +279,8 @@ class MainFrame(wx.Frame):
             dialog = wx.MessageDialog(self, "Please enter values for the number of rows and columns in the scan.", "Error", style=wx.ICON_ERROR)
             dialog.ShowModal()
             return
-        
+
+        # Get the list of region of interest objects.
         roiList = self.fileTree.buttonPanel.roiPanel.GetRoiList()
         numRois = len(roiList)
         path = self.fileTree.dirPanel.dirControl.GetPath()
@@ -262,7 +299,12 @@ class MainFrame(wx.Frame):
         # Set the range of the progress bar to be the number of files that will be summed.
         self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetRange(len(checkedFileList))
 
-        worker = DataSummationThread(self, roiList, checkedFileList, path, self.UpdateProgressBar)
+        if self.plot_type == constants.TWOD_PLOT:
+            worker = DataSummationThread(self, roiList, checkedFileList, path, self.UpdateProgressBar)
+
+        if self.plot_type == constants.IMAGE:
+            worker = ImagePixelSummationThread(self, roiList, checkedFileList, path, self.UpdateProgressBar)
+
         worker.start()
         return
 
@@ -334,25 +376,50 @@ class PlottingPanel(wx.Panel):
         wx.Panel.__init__(self, parent=parent, id=wx.ID_ANY)
         
         self.parent = parent
+        self.arrayValues = None
+        self.min = None
+        self.max = None
+        self.figure_height = 5.0
+        self.figure_width = 5.0
+        self.data = None
+        self.plot_type = None
+        self.plot = None
         
         # Create the figure, canvas, and axes used to plot the data
         self.figure = Figure((5,5), 150)
         self.subplot = self.figure.add_subplot(111)
+        self.figure.tight_layout(pad=1.2)
         self.canvas = FigureCanvas(self, -1, self.figure)
+
+        self.adjustmentsPanel = ImageAdjustmentPanel(self)
 
         self.toolbar = Toolbar(self.canvas)
         self.toolbar.Realize()
         
         # Bind a draw event to a function
         self.canvas.mpl_connect('draw_event', self.GetROIBounds)
+
+        self.Bind(wx.EVT_SLIDER, self.AdjustImage, id=self.adjustmentsPanel.contrastSlider.GetId())
         
         panelSizer = wx.BoxSizer(wx.VERTICAL)
         panelSizer.Add(self.canvas, 1, wx.EXPAND)
+        panelSizer.Add(self.adjustmentsPanel, 0, wx.EXPAND)
         panelSizer.Add(self.toolbar, 0, wx.LEFT | wx.EXPAND)
         
         self.SetSizer(panelSizer)
         self.Fit()
         
+        return
+
+    def AdjustImage(self, event):
+
+        if self.plot_type == constants.IMAGE:
+
+            value = float(self.adjustmentsPanel.contrastSlider.GetValue())
+            tempMax = float(self.max) * (1.0/value)
+            self.plot.set_clim(vmax=tempMax)
+            self.canvas.draw()
+
         return
     
     def GetROIBounds(self, event):
@@ -361,7 +428,7 @@ class PlottingPanel(wx.Panel):
         
         return
     
-    def draw(self, data, clear=False):
+    def draw(self, data, clear=False, plot_type=constants.TWOD_PLOT):
         '''
         Draw the data on the plot
         
@@ -370,11 +437,9 @@ class PlottingPanel(wx.Panel):
         '''
 
         # Get the data to be plotted.  It is a 2D array.
-        arrayValues = data.GetDataArray()
-        x_values = arrayValues[0]
-        y_values = arrayValues[1]
-#        print x_values.shape
-#        print y_values.shape
+        self.arrayValues = data.GetDataArray()
+        self.data = data
+        self.plot_type = plot_type
 
         if clear:
             self.figure.clear()
@@ -384,13 +449,29 @@ class PlottingPanel(wx.Panel):
         self.subplot.set_xlabel(data.GetAxisLabels()[0])
         self.subplot.set_ylabel(data.GetAxisLabels()[1])
         self.figure.suptitle(data.GetDataFileName(), fontsize=12)
-        if self.parent.fileTree.buttonPanel.fileButtonPanel.backgroundCheckBox.IsChecked():
-#            print 'Show background'
-            background = data.CalculateBackground()
-#            print background.shape
-            self.subplot.plot(x_values, background)
-        else:
-            self.subplot.plot(x_values, y_values)
+
+        if plot_type == constants.TWOD_PLOT:
+            x_values = self.arrayValues[0]
+            y_values = self.arrayValues[1]
+#           print x_values.shape
+#           print y_values.shape
+            if self.parent.fileTree.buttonPanel.fileButtonPanel.backgroundCheckBox.IsChecked():
+#               print 'Show background'
+                background = data.CalculateBackground()
+#               print background.shape
+                self.subplot.plot(x_values, background)
+            else:
+                self.subplot.plot(x_values, y_values)
+
+        if plot_type == constants.IMAGE:
+            self.min = numpy.amin(self.arrayValues)
+            self.max = numpy.amax(self.arrayValues)
+            self.adjustmentsPanel.contrastSlider.SetMax(self.max/2)
+            self.plot = self.subplot.imshow(self.arrayValues, cmap=cm.get_cmap('gnuplot2'), norm=None, aspect='equal',
+                                            interpolation=None, alpha=None, vmin=self.min, vmax=self.max,
+                                            origin='upper')
+
+        self.adjustmentsPanel.contrastSlider.SetValue(1)
 
         self.canvas.draw()
 
@@ -399,6 +480,32 @@ class PlottingPanel(wx.Panel):
     def GetPlotInfo(self):
         return (self.subplot, self.figure, self.canvas)
 
+class ImageAdjustmentPanel(wx.Panel):
+    '''
+    classdocs
+    '''
+
+    def __init__(self, parent):
+        '''
+        Constructor
+        '''
+
+        wx.Panel.__init__(self, parent=parent, id=wx.ID_ANY)
+
+        self.parent = parent
+
+        self.contrastLabel = wx.StaticText(self, -1, "Contrast", style=wx.ALIGN_CENTER | wx.SIMPLE_BORDER)
+
+        self.contrastSlider = wx.Slider(self, id=1001, minValue=1, maxValue=500)
+
+        panelSizer = wx.BoxSizer(wx.HORIZONTAL)
+        panelSizer.Add(self.contrastLabel, 0)
+        panelSizer.Add(self.contrastSlider, 1, wx.EXPAND)
+
+        self.SetSizer(panelSizer)
+        self.Fit()
+
+        return
 #################################################################################################################################
 class FileTreePanel(wx.Panel):
     '''
@@ -465,16 +572,14 @@ class FileTreePanel(wx.Panel):
             self.filePanel.fileListCtrl.DeleteAllItems()
         
         # Generate a new list of files using the selected path.
-        builder = FileListBuilder()        
+        builder = FileListBuilder()
         files = builder.CreateNewSortedFileList(currentPath, None)
-        
+        num_files = range(len(files))
         # Populate the list control with the new file list.
-        i = 1
-        for fileitem in files:
-            index = self.filePanel.fileListCtrl.InsertStringItem(sys.maxint, "%d" % i)
-            self.filePanel.fileListCtrl.SetStringItem(index, 1, "%s" % fileitem[0])
-            i = i + 1            
-        
+        for num, file_name in zip(num_files, files):
+            index = self.filePanel.fileListCtrl.InsertStringItem(sys.maxint, "%d" % (num + 1))
+            self.filePanel.fileListCtrl.SetStringItem(index, 1, "%s" % file_name)
+
         event.Skip()
         return
 
@@ -612,6 +717,8 @@ class ButtonPanel(wx.Panel):
         '''
         
         wx.Panel.__init__(self, parent=parent, id=wx.ID_ANY)
+
+        self.parent = parent
         
         self.panelSizer = wx.BoxSizer(wx.HORIZONTAL)
         
@@ -630,6 +737,9 @@ class ButtonPanel(wx.Panel):
     
     def Redraw(self):
         self.panelSizer.Layout()
+        return
+
+    def Reset(self):
         return
     
 #################################################################################################################################    

@@ -10,8 +10,101 @@ import decimal
 import matplotlib.pyplot as plt
 from scipy import signal
 from math import sqrt
+from PIL import Image
 
-class XYDataArray(object):
+class DataArray(object):
+
+    def __init__(self):
+        self.data_values = None
+        self.x_label = 'X Label'
+        self.y_label = 'Y Label'
+        self.data_source = None
+
+    def CreateArrays(self):
+        return
+
+    def GetDataArray(self):
+        return self.data_values
+
+    def GetArraySize(self):
+        return self.data_values.shape
+
+    def GetAxisLabels(self):
+        return self.x_label, self.y_label
+
+    def GetDataFileName(self):
+        return self.data_source
+
+class TiffDatatArray(DataArray):
+    '''
+    This class contains an image from a file representing diffraction data.  It is
+    saved as a 2 dimensional numpy array.
+    '''
+
+    def __init__(self):
+        '''
+        Constructor
+        '''
+
+        DataArray.__init__(self)
+        self.width = None
+        self.height = None
+        self.time = None
+        self.detector = 0
+        self.img = None
+        self.param_string = None
+        self.x_label = ''
+        self.y_label = ''
+
+        return
+
+    def CreateArrays(self, fileName):
+
+        self.data_source = fileName
+
+        try:
+            self.img = Image.open(fileName)
+#            temp = np.array(self.img)
+#            self.data_values = temp.transpose()
+            self.data_values = np.array(self.img)
+
+            tags = self.img.tag_v2.as_dict()
+            self.width = tags[256]
+            self.height = tags[257]
+            temp = tags[306].strip('\x00')
+            self.date = temp.split()[0]
+            self.time = temp.split()[1]
+            self.detector = tags[272]
+            self.param_string = tags[270]
+
+        except IOError as e:
+            return
+        return
+
+    def GetDetectorModel(self):
+        return self.detector
+
+    def GetDetectorParams(self):
+        return self.param_string
+
+    def GetWidth(self):
+        return self.width
+
+    def GetHeight(self):
+        return self.height
+
+    def SumROIData(self, point1, point2):
+
+        point1_x = point1[0]
+        point1_y = point1[1]
+        point2_x = point2[0] + 1
+        point2_y = point2[1] + 1
+
+        pixel_sum = np.sum(self.data_values[point1_y:point2_y, point1_x:point2_x])
+#        print pixel_sum
+        return pixel_sum
+
+class XYDataArray(DataArray):
     '''
     This class contains a 2 dimensional numpy array. The array values are taken from 
     a x-ray diffraction data file. 
@@ -23,11 +116,12 @@ class XYDataArray(object):
         Constructor
         '''
 
-        self.x_label = None
-        self.y_label = None
-        self.data_source = None
+        DataArray.__init__(self)
+#        self.x_label = None
+#        self.y_label = None
+#        self.data_source = None
         self.array_size = 0
-        self.data_values = None
+#        self.data_values = None
         self.data_no_background = None
         
         return
@@ -98,23 +192,23 @@ class XYDataArray(object):
 
         return
         
-    def GetDataArray(self):
-        return self.data_values
+#    def GetDataArray(self):
+#        return self.data_values
     
-    def GetDataFileName(self):
-        return self.data_source
+#    def GetDataFileName(self):
+#        return self.data_source
     
-    def GetArraySize(self):
-        return self.data_values.shape
+#    def GetArraySize(self):
+#        return self.data_values.shape
     
-    def GetAxisLabels(self):
-        return self.x_label, self.y_label
+#    def GetAxisLabels(self):
+#        return self.x_label, self.y_label
     
     def SumROIData(self, roiStart, roiEnd):
         sumVal = 0.0
         
         # If the value of the ith element in the first dimension is between the two
-        # suplied values, then add the value of the ith element in the second
+        # supplied values, then add the value of the ith element in the second
         # dimension to the running total.
         for i in range(self.array_size):
             if (self.data_values[0,i] >= roiStart) and (self.data_values[0,i] <= roiEnd):

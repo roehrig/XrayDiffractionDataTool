@@ -5,6 +5,7 @@ Created on Aug 19, 2014
 '''
 
 import os
+import sys
 
 class FileListBuilder(object):
     '''
@@ -36,8 +37,8 @@ class FileListBuilder(object):
             
             for fileItem in dirList:
                 fileName = os.path.join(path, fileItem)
-                if (os.path.isfile(fileName)):
-                    if (not filter == None):
+                if os.path.isfile(fileName):
+                    if filter is not None:
                         if fileName.endswith(filter):
                             info = os.stat(fileName)
                             fileSize = info.st_size
@@ -64,26 +65,19 @@ class FileListBuilder(object):
         alphabetically.
         '''
         self.fileList = []
-        try :
+        temp = []
+        try:
             dirList = os.listdir(path)
-        
-        
+
             for fileItem in dirList:
-                fileName = os.path.join(path, fileItem)
-                if (os.path.isfile(fileName)):
-                    if (not filter == None):
-                        if fileName.endswith(filter):
-                            info = os.stat(fileName)
-                            fileSize = info.st_size
-                            self.fileList.append((os.path.split(fileName)[1], fileSize))
+                    if filter is not None:
+                        if fileItem.endswith(filter):
+                            temp.append(fileItem)
                     else:
-                        info = os.stat(fileName)
-                        fileSize = info.st_size
-                        self.fileList.append((os.path.split(fileName)[1], fileSize))
-                    
+                        temp.append(fileItem)
+
         except OSError:
             return None
 
-        self.fileList.sort(cmp=None, key=lambda fileName: fileName[0])
-
+        self.fileList = sorted(temp)
         return self.fileList
