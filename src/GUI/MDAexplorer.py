@@ -2329,8 +2329,10 @@ class TopFrame(wx.Frame):
 
         if (USE_OLD_PUBLISHER):
             self.dataPublisher = Publisher()
+            self.dataPublisher.subscribe(self.OnCloseApp, "close_application")
         else:
             self.dataPublisher = pub.getDefaultPublisher()
+            self.dataPublisher.subscribe(self.OnCloseApp, "close_application")
 
         # init data structures
         self.data = None
@@ -2656,6 +2658,15 @@ class TopFrame(wx.Frame):
             dirFrame.Show(True)
             self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
             
+        return
+
+    def OnCloseApp(self, message):
+        self.Close(True)
+
+    def OnCloseWindow(self, event):
+
+        self.Destroy()
+
         return
 
 #!def main():

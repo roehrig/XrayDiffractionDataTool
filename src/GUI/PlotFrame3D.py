@@ -50,11 +50,14 @@ class PlotFrame3D(wx.Frame):
         self.wireButton = wx.RadioButton(self, 101, label='3D Wire', size=wx.Size(100,20))
         self.surfaceButton = wx.RadioButton(self, 102, label='3D Surface', size=wx.Size(100,20))
         self.twoDButton = wx.RadioButton(self, 103, label='2D Plot', size=wx.Size(100,20))
+
+        self.adjustmentPanel = ImageAdjustmentPanel(self)
         
         self.Bind(wx.EVT_RADIOBUTTON, self.ChangePlotType, id=self.imageButton.GetId())
         self.Bind(wx.EVT_RADIOBUTTON, self.ChangePlotType, id=self.wireButton.GetId())
         self.Bind(wx.EVT_RADIOBUTTON, self.ChangePlotType, id=self.surfaceButton.GetId())
         self.Bind(wx.EVT_RADIOBUTTON, self.ChangePlotType, id=self.twoDButton.GetId())
+        self.Bind(wx.EVT_SLIDER, self.AdjustImage, id=self.adjustmentsPanel.contrastSlider.GetId())
         
         self.statusBar = wx.StatusBar(self, -1)
         self.statusBar.SetFieldsCount(1)
@@ -73,6 +76,7 @@ class PlotFrame3D(wx.Frame):
         panelSizer.Add(self.canvas, 1, wx.EXPAND)
         panelSizer.Add(self.toolbar, 0, wx.LEFT | wx.EXPAND)
         panelSizer.Add(buttonSizer, 0, flag=wx.ALL | wx.EXPAND, border=5)
+        panelSizer.Add(self.adjustmentsPanel, 0, wx.EXPAND)
         
         self.SetSizer(panelSizer)
         self.Fit()
@@ -117,4 +121,31 @@ class PlotFrame3D(wx.Frame):
             
         self.canvas.draw()
         
+        return
+
+class ImageAdjustmentPanel(wx.Panel):
+    '''
+    classdocs
+    '''
+
+    def __init__(self, parent):
+        '''
+        Constructor
+        '''
+
+        wx.Panel.__init__(self, parent=parent, id=wx.ID_ANY)
+
+        self.parent = parent
+
+        self.contrastLabel = wx.StaticText(self, -1, "Contrast", style=wx.ALIGN_CENTER | wx.SIMPLE_BORDER)
+
+        self.contrastSlider = wx.Slider(self, id=1001, minValue=1, maxValue=500)
+
+        panelSizer = wx.BoxSizer(wx.HORIZONTAL)
+        panelSizer.Add(self.contrastLabel, 0)
+        panelSizer.Add(self.contrastSlider, 1, wx.EXPAND)
+
+        self.SetSizer(panelSizer)
+        self.Fit()
+
         return

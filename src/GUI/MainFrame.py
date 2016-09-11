@@ -358,6 +358,11 @@ class MainFrame(wx.Frame):
         return
     
     def OnCloseWindow(self, event):
+        if (USE_OLD_PUBLISHER):
+            self.dataPublisher.sendMessage(("close_application"), None, onTopicNeverCreated=None)
+        else:
+            self.dataPublisher.sendMessage(("close_application"), message=None)
+
         self.Destroy()
         return
 
@@ -453,12 +458,9 @@ class PlottingPanel(wx.Panel):
         if plot_type == constants.TWOD_PLOT:
             x_values = self.arrayValues[0]
             y_values = self.arrayValues[1]
-#           print x_values.shape
-#           print y_values.shape
+
             if self.parent.fileTree.buttonPanel.fileButtonPanel.backgroundCheckBox.IsChecked():
-#               print 'Show background'
                 background = data.CalculateBackground()
-#               print background.shape
                 self.subplot.plot(x_values, background)
             else:
                 self.subplot.plot(x_values, y_values)
@@ -466,6 +468,8 @@ class PlottingPanel(wx.Panel):
         if plot_type == constants.IMAGE:
             self.min = numpy.amin(self.arrayValues)
             self.max = numpy.amax(self.arrayValues)
+            # Set the maximum of the contrast slider to half of the maximum value of the image.
+            # That way, the least value of vmax that can be set by the slider is 2.
             self.adjustmentsPanel.contrastSlider.SetMax(self.max/2)
             self.plot = self.subplot.imshow(self.arrayValues, cmap=cm.get_cmap('gnuplot2'), norm=None, aspect='equal',
                                             interpolation=None, alpha=None, vmin=self.min, vmax=self.max,
