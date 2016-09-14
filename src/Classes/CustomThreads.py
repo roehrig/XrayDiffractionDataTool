@@ -26,6 +26,8 @@ def SumData(roi_start_list, roi_end_list, file_list, file_path, istart, iend, qu
     data_array = XYDataArray()
     num_rois = len(roi_start_list)
     logger.info("Reading files from %d to %d" % (istart, iend))
+    if istart > 0:
+        istart = istart - 1
 
     # Process each file in the list that falls in the range istart to iend
     for i in range(istart, iend):
@@ -45,7 +47,7 @@ def SumData(roi_start_list, roi_end_list, file_list, file_path, istart, iend, qu
     return roi_sums
 
 
-def SumPixels(roi_start_list, roi_end_list, file_list, file_path, istart, iend, queue):
+def SumImageROI(roi_start_list, roi_end_list, file_list, file_path, istart, iend, queue):
     logger = mp.get_logger()
     mp.log_to_stderr(logging.INFO)
 
@@ -53,6 +55,8 @@ def SumPixels(roi_start_list, roi_end_list, file_list, file_path, istart, iend, 
     data_array = TiffDatatArray()
     num_rois = len(roi_start_list)
     logger.info("Reading files from %d to %d" % (istart, iend))
+    if istart > 0:
+        istart = istart - 1
 
     # Process each file in the list that falls in the range istart to iend
     for i in range(istart, iend):
@@ -63,14 +67,40 @@ def SumPixels(roi_start_list, roi_end_list, file_list, file_path, istart, iend, 
         # Sum the data in the arrays that lies between the roi values.  Do this
         # for each roi that was created.
         for j in range(num_rois):
-#           logger.info("Summing roi %d from file %d" % (j, i))
-            roi_sums[j][i] = roi_sums[j][i] + data_array.SumROIData(roi_start_list[j], roi_end_list[j])
+            new_sum = data_array.SumROIData(roi_start_list[j], roi_end_list[j])
+            roi_sums[j][i] = roi_sums[j][i] + new_sum
+
+        # Add a value of 1 to the queue so that the user interface can be updated
+        # with the latest progress.
+        queue.put(1)
+
+    return roi_sums
+
+def SumPixels(file_list, file_path, istart, iend, queue):
+    logger = mp.get_logger()
+    mp.log_to_stderr(logging.INFO)
+
+    roi_sums = mproc.SHARED_ARRAY
+    data_array = TiffDatatArray()
+    logger.info("Reading files from %d to %d" % (istart, iend))
+    if istart > 0:
+        istart = istart - 1
+
+    # Process each file in the list that falls in the range istart to iend
+    for i in range(istart, iend):
+
+        # Read in the information from the file and create numpy arrays from that information.
+        data_array.CreateArrays(os.path.join(file_path, file_list[i]))
+
+        # Sum the data in the arrays that lies between the roi values.  Do this
+        # for each roi that was created.
+        new_sum = data_array.GetDataArray()
+        roi_sums = numpy.add(roi_sums, new_sum)
 
         # Add a value of 1 to the queue so that the user interface can be updated
         # with the latest progress.
         queue.put(1)
     return roi_sums
-
 
 class DataSummationThread (threading.Thread):
     '''
@@ -157,7 +187,7 @@ class DataSummationThread (threading.Thread):
 
         return
 
-class ImagePixelSummationThread (threading.Thread):
+class ImageROISummationThread (threading.Thread):
     '''
     This class creates a thread that will open a list of files and sums the
     values of the pixels in each file that falls within the ROIs that are set
@@ -181,7 +211,7 @@ class ImagePixelSummationThread (threading.Thread):
         self._file_list = file_list
         self._file_path = path
         self._data = TiffDatatArray()
-        self._func = SumPixels
+        self._func = SumImageROI
         self._update_func = update_func
 
         return
@@ -229,6 +259,14 @@ class ImagePixelSummationThread (threading.Thread):
             roi_start_list.append((x0, y0))
             roi_end_list.append((x1, y1))
 
+#        for i in range(num_items):
+#            self._data.CreateArrays(os.path.join(self._file_path, self._file_list[i]))
+
+#            for j in range(num_rois):
+#                roi_sums[j][i] = roi_sums[j][i] + self._data.SumROIData(roi_start_list[j], roi_end_list[j])
+
+#            print i
+
         roi_sums = mproc.distribute_jobs(
             roi_sums,
             func=self._func,
@@ -240,6 +278,56 @@ class ImagePixelSummationThread (threading.Thread):
 
         # Alert the main application that the data is ready to be plotted.
         evt = DataSummationEvent(myEVT_SUM_DATA, -1, roi_sums)
+        wx.PostEvent(self._parent, evt)
+
+        return
+
+class ImagePixelSummationThread (threading.Thread):
+    '''
+    This class creates a thread that will open a list of files and sums the
+    values of the pixels in each file.
+    '''
+
+    def __init__(self, parent, size, file_list, path, update_func):
+        '''
+        Create the thread object.
+
+        parent - The object that created this thread
+        roiList - A list of ROI objects
+        fileList - A list of files that contain the data to be summed.
+        path - A path in the file system that gives the location of the files.
+        update_func - A function to be called for updating the user interface.
+        '''
+        threading.Thread.__init__(self)
+
+        self._parent = parent
+        self._file_list = file_list
+        self._file_path = path
+        self._data = TiffDatatArray()
+        self._func = SumPixels
+        self._update_func = update_func
+        self._height = size[0]
+        self._width = size[1]
+
+        return
+
+    def run(self):
+
+        # Create an array the size of the roi list and initialized to zero.
+        num_items = len(self._file_list)
+        pixel_sums = numpy.zeros((self._height, self._width), dtype=numpy.float32)
+
+        pixel_sums = mproc.distribute_jobs(
+            pixel_sums,
+            func=self._func,
+            update_func=self._update_func,
+            num_files=num_items,
+            args=(self._file_list, self._file_path),
+            ncore=None,
+            nchunk=None)
+
+        # Alert the main application that the data is ready to be plotted.
+        evt = ImageSummationEvent(myEVT_PLOT_IMAGE_SUM, -1, pixel_sums)
         wx.PostEvent(self._parent, evt)
 
         return

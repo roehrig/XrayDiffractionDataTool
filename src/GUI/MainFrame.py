@@ -23,11 +23,14 @@ from matplotlib import cm
 from checklistcontrol import CheckListControl as CLC
 from GrowableSectionPanel import DynamicTextControlPanel
 from Classes.filelistbuilder import FileListBuilder
+from Classes.diffractiondatatool import DataArray
 from Classes.diffractiondatatool import XYDataArray
 from Classes.diffractiondatatool import TiffDatatArray
 from Classes.CustomEvents import EVT_SUM_DATA
 from Classes.CustomEvents import EVT_UPDATE_PROGRESS
+from Classes.CustomEvents import EVT_PLOT_IMAGE_SUM
 from Classes.CustomThreads import DataSummationThread
+from Classes.CustomThreads import ImageROISummationThread
 from Classes.CustomThreads import ImagePixelSummationThread
 from Classes.graphingtools import ROI
 from wx.lib.scrolledpanel import ScrolledPanel
@@ -58,6 +61,7 @@ class MainFrame(wx.Frame):
         self.numThreadsDone = 0
         self.maxNumThreads = 10
         self.index = 0
+        self.scale_factor = 1
         
         # Create a Publisher object and subscribe to two topics
         if USE_OLD_PUBLISHER:
@@ -90,7 +94,9 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.OnPlotButtonClick, self.fileTree.buttonPanel.fileButtonPanel.plotDataButton)
         self.Bind(wx.EVT_BUTTON, self.OnSaveFileButtonClick, self.fileTree.buttonPanel.fileButtonPanel.saveAsFileButton)
         self.Bind(wx.EVT_BUTTON, self.OnSumDataButtonClick, self.fileTree.buttonPanel.fileButtonPanel.sumDataButton)
+        self.Bind(wx.EVT_BUTTON, self.OnPlotImageSumButtonClick, self.fileTree.buttonPanel.fileButtonPanel.plotSumButton)
         self.Bind(EVT_SUM_DATA, self.PlotSumData)
+        self.Bind(EVT_PLOT_IMAGE_SUM, self.PlotImageSum)
         self.Bind(EVT_UPDATE_PROGRESS, self.UpdateProgressBar)
         self.Bind(wx.EVT_CLOSE, self.OnCloseWindow)
         
@@ -168,7 +174,7 @@ class MainFrame(wx.Frame):
                     bounds = roiList[i].GetLinePositions()
                     lowerBound = bounds[0]
                     upperBound = bounds[1]
-            
+                    print bounds
                     if lowerBound < upperBound:
                         ctrl[0].SetValue("%f" % lowerBound)
                         ctrl[1].SetValue("%f" % upperBound)
@@ -183,8 +189,6 @@ class MainFrame(wx.Frame):
                     dimensions = roiList[i].GetDimensions()
                     ctrl[0].SetValue("%d,%d" % (dimensions[0], dimensions[1]))
                     ctrl[1].SetValue("%d,%d" % (dimensions[2], dimensions[3]))
-
-                    i = i + 1
         
         return
 
@@ -288,13 +292,7 @@ class MainFrame(wx.Frame):
 
         # Create a list of all of the files that were checked by the user to be
         # included in the summation.
-        numFiles = fileList.GetItemCount()
-        checkedFileList = []
-        for i in range(numFiles):
-            if fileList.IsChecked(i):
-                listItem = fileList.GetItem(i, 1)
-                fileName = listItem.GetText()
-                checkedFileList.append(fileName)
+        checkedFileList = self.CreateCheckedFileList(fileList)
 
         # Set the range of the progress bar to be the number of files that will be summed.
         self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetRange(len(checkedFileList))
@@ -303,7 +301,7 @@ class MainFrame(wx.Frame):
             worker = DataSummationThread(self, roiList, checkedFileList, path, self.UpdateProgressBar)
 
         if self.plot_type == constants.IMAGE:
-            worker = ImagePixelSummationThread(self, roiList, checkedFileList, path, self.UpdateProgressBar)
+            worker = ImageROISummationThread(self, roiList, checkedFileList, path, self.UpdateProgressBar)
 
         worker.start()
         return
@@ -312,8 +310,6 @@ class MainFrame(wx.Frame):
         '''
         Create plots of the summed ROI data for each ROI.
         '''
-
-#        print "Summing thread finished."
 
         # Get the number of rows and columns in the scan.
         try:
@@ -336,22 +332,78 @@ class MainFrame(wx.Frame):
             maxVal = numpy.amax(roiSums[j])
             minVal = numpy.amin(roiSums[j])
             # Create a wx.Frame object to display the plot.
-            plotFrame = PlotFrame3D.PlotFrame3D(self, "ROI %d" % j, numRows, numColumns, z_values, maxVal, minVal)
+            plotFrame = PlotFrame3D.PlotFrame3D(self, "ROI %d" % (j + 1), numRows, numColumns, z_values, maxVal, minVal)
             plotFrame.Show(True)
         
         # Reset the progress bar back to zero.
         self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetValue(0)
             
         return
-    
-#    def UpdateProgressBar(self, evt):
+
+    def OnPlotImageSumButtonClick(self, event):
+        self.ImageSum()
+        return
+
+    def ImageSum(self):
+
+        path = self.fileTree.dirPanel.dirControl.GetPath()
+        fileList = self.fileTree.filePanel.fileListCtrl
+
+        checkedFileList = self.CreateCheckedFileList(fileList)
+        self.scale_factor = len(checkedFileList)
+
+        # Set the range of the progress bar to be the number of files that will be summed.
+        self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetRange(len(checkedFileList))
+
+        if self.plot_type == constants.IMAGE:
+            worker = ImagePixelSummationThread(self, self.data.GetArraySize(),checkedFileList, path,
+                                               self.UpdateProgressBar)
+            worker.start()
+
+        return
+
+    def PlotImageSum(self, evt):
+
+        image = evt.GetValue()
+        self.data = DataArray(data=image)
+
+        self.data.ScaleData(self.scale_factor)
+
+        self.plottingPanel.draw(self.data, True, self.plot_type)
+
+        # Reset the progress bar back to zero.
+        self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetValue(0)
+
+        # If there were ROI lines on a previous plot, redraw them.
+        roiList = self.fileTree.buttonPanel.roiPanel.GetRoiList()
+        for roi in roiList:
+            roi.SetNewAxes(self.plottingPanel.subplot)
+            roi.AddLines()
+
+        self.plottingPanel.canvas.draw()
+
+        return
+
     def UpdateProgressBar(self, message):
-        
-#        self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetValue(evt.GetValue())
+
         old_value = self.fileTree.buttonPanel.fileButtonPanel.progressGauge.GetValue()
         self.fileTree.buttonPanel.fileButtonPanel.progressGauge.SetValue(old_value + message)
-#        print "Setting progress bar to %d" % (old_value + message)
+
         return
+
+    def CreateCheckedFileList(self, fileList):
+
+        # Create a list of all of the files that were checked by the user to be
+        # included in the summation.
+        numFiles = fileList.GetItemCount()
+        checkedFileList = []
+        for i in range(numFiles):
+            if fileList.IsChecked(i):
+                listItem = fileList.GetItem(i, 1)
+                fileName = listItem.GetText()
+                checkedFileList.append(fileName)
+
+        return checkedFileList
     
     def OnCloseButtonClick(self, event):
         self.Close(True)
@@ -453,7 +505,7 @@ class PlottingPanel(wx.Panel):
         # Set the plot and axies labels, then draw the plot.    
         self.subplot.set_xlabel(data.GetAxisLabels()[0])
         self.subplot.set_ylabel(data.GetAxisLabels()[1])
-        self.figure.suptitle(data.GetDataFileName(), fontsize=12)
+        self.figure.suptitle(data.GetDataFileName(), fontsize=8)
 
         if plot_type == constants.TWOD_PLOT:
             x_values = self.arrayValues[0]
@@ -468,14 +520,26 @@ class PlottingPanel(wx.Panel):
         if plot_type == constants.IMAGE:
             self.min = numpy.amin(self.arrayValues)
             self.max = numpy.amax(self.arrayValues)
+            sliderMax = self.adjustmentsPanel.contrastSlider.GetMax()
+            sliderVal = self.adjustmentsPanel.contrastSlider.GetValue()
+
             # Set the maximum of the contrast slider to half of the maximum value of the image.
             # That way, the least value of vmax that can be set by the slider is 2.
             self.adjustmentsPanel.contrastSlider.SetMax(self.max/2)
-            self.plot = self.subplot.imshow(self.arrayValues, cmap=cm.get_cmap('gnuplot2'), norm=None, aspect='equal',
-                                            interpolation=None, alpha=None, vmin=self.min, vmax=self.max,
-                                            origin='upper')
 
-        self.adjustmentsPanel.contrastSlider.SetValue(1)
+            # Scale the value of the slider control so that the image appearance does not
+            # change from one to the next.
+            newSliderVal = float(sliderVal) * ((float(self.max)/2.0) / float(sliderMax))
+            self.adjustmentsPanel.contrastSlider.SetValue(newSliderVal)
+
+            # Set the maximum value displayed.
+            tempMax = float(self.max) * (1.0/newSliderVal)
+            print tempMax
+
+            # Plot the image
+            self.plot = self.subplot.imshow(self.arrayValues, cmap=cm.get_cmap('gnuplot2'), norm=None, aspect='equal',
+                                            interpolation=None, alpha=None, vmin=self.min, vmax=tempMax,
+                                            origin='upper')
 
         self.canvas.draw()
 
@@ -763,7 +827,7 @@ class FileButtonPanel(wx.Panel):
         self.clearAllButton = wx.Button(self, -1, "Clear All",size=wx.Size(100,30))
         self.plotDataButton = wx.Button(self, -1, "Plot File",size=wx.Size(100,30))
         self.sumDataButton = wx.Button(self, -1, "Sum ROIs",size=wx.Size(100,30))
-#        self.sumData2DButton = wx.Button(self, -1, "Sum ROIs in 2D Plot",size=wx.Size(100,30))
+        self.plotSumButton = wx.Button(self, -1, "Plot Image Sum",size=wx.Size(100,30))
         self.exitButton = wx.Button(self, -1, "Exit",size=wx.Size(100,30))
         
         self.selectRangeButton = wx.Button(self, -1, "Select Range",size=wx.Size(100,30))
@@ -791,7 +855,7 @@ class FileButtonPanel(wx.Panel):
         self.plotDataButton.SetToolTipString("Show file data in a 2D plot.")
         self.saveAsFileButton.SetToolTipString("Save plotted file with background subtracted")
         self.sumDataButton.SetToolTipString("Sum all ROI data in selected files and create plots.")
-#        self.sumData2DButton.SetToolTipString("Sum all ROI data in selected files and create 2D plots.")
+        self.plotSumButton.SetToolTipString("Plot a sum of all selected images.")
         self.exitButton.SetToolTipString("Exit the application.")
         
         sizer1 = wx.BoxSizer(wx.HORIZONTAL)
@@ -827,6 +891,7 @@ class FileButtonPanel(wx.Panel):
         panelSizer.Add(sizer4, 0, wx.ALIGN_CENTER)
         panelSizer.Add(self.line2, 0, wx.ALIGN_CENTER)
         panelSizer.Add(self.sumDataButton, 0, wx.ALIGN_CENTER)
+        panelSizer.Add(self.plotSumButton, 0, wx.ALIGN_CENTER)
         panelSizer.Add(self.progressGauge, 0, wx.ALIGN_CENTER)
         panelSizer.Add(self.line3, 0, wx.ALIGN_CENTER)
         panelSizer.Add(self.exitButton, 0, wx.ALIGN_CENTER)

@@ -226,31 +226,12 @@ class LineROI(ROI):
         self.line2_xdata = None
         self.line_color = (red, green, blue)
         
-#        self.canvas = canvas
-        
         self.grab_line = None
-        
-#        self.fig = fig
+
         self.fig.canvas.draw()
-        
-#        self.SetEventHandlers()
-        
-#        self.ax = ax
-        
+
         return
-    
-#    def SetEventHandlers(self):
-#        '''
-#        Set up the event handlers for the matplotlib canvas
-#        '''
-        
-#        self.canvas.mpl_connect('motion_notify_event', self.motion_notify_callback)
-#        self.canvas.mpl_connect('button_press_event', self.button_press_callback)
-#        self.canvas.mpl_connect('button_release_event', self.button_release_callback)
-#        self.canvas.mpl_connect('pick_event', self.object_picked_callback)
-        
-#        return
-    
+
     def ClearLines(self):
         '''
         Clear the lines on the plot and reset the ROI values to zero.
@@ -322,10 +303,12 @@ class LineROI(ROI):
                     self.line2.set_picker(True)
                     self.line2.set_color(self.line_color)
                     ax.add_line(self.line2)
-                    xdata2 = self.line.get_xdata(False)
-                    self.line_position = xdata2[0]
-                    self.line_xdata = xdata2
+                    xdata2 = self.line2.get_xdata(False)
+                    self.line2_position = xdata2[0]
+                    self.line2_xdata = xdata2
                     self.fig.canvas.draw()
+
+                print (self.line_position, self.line2_position)
                     
                         
         return
@@ -366,11 +349,7 @@ class LineROI(ROI):
         self.fig.canvas.draw()
 
         return
-    
-#    def SetNewAxes(self, ax):
-#        self.ax = ax
-#        return
-    
+
     def GetStart(self):
         if (self.line_position <= self.line2_position):
             return self.line_position
@@ -388,3 +367,5 @@ class LineROI(ROI):
             self.line_xdata = self.line.get_xdata(False)
         if not (self.line2 == None):
             self.line2_xdata = self.line2.get_xdata(False)
+
+        return

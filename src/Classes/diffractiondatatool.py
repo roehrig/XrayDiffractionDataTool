@@ -14,8 +14,8 @@ from PIL import Image
 
 class DataArray(object):
 
-    def __init__(self):
-        self.data_values = None
+    def __init__(self, data=None):
+        self.data_values = data
         self.x_label = 'X Label'
         self.y_label = 'Y Label'
         self.data_source = None
@@ -34,6 +34,13 @@ class DataArray(object):
 
     def GetDataFileName(self):
         return self.data_source
+
+    def ScaleData(self, factor):
+
+        temp = np.true_divide(self.data_values, factor)
+        self.data_values = temp
+
+        return
 
 class TiffDatatArray(DataArray):
     '''
@@ -101,7 +108,7 @@ class TiffDatatArray(DataArray):
         point2_y = point2[1] + 1
 
         pixel_sum = np.sum(self.data_values[point1_y:point2_y, point1_x:point2_x])
-#        print pixel_sum
+
         return pixel_sum
 
 class XYDataArray(DataArray):

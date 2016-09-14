@@ -6,6 +6,7 @@ Created on Oct 22, 2014
 import wx
 import matplotlib
 import numpy as np
+import Classes.constants as constants
 matplotlib.use('WXAgg')
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx as Toolbar
@@ -51,7 +52,7 @@ class PlotFrame3D(wx.Frame):
         self.surfaceButton = wx.RadioButton(self, 102, label='3D Surface', size=wx.Size(100,20))
         self.twoDButton = wx.RadioButton(self, 103, label='2D Plot', size=wx.Size(100,20))
 
-        self.adjustmentPanel = ImageAdjustmentPanel(self)
+        self.adjustmentsPanel = ImageAdjustmentPanel(self, self.minValue, self.maxValue)
         
         self.Bind(wx.EVT_RADIOBUTTON, self.ChangePlotType, id=self.imageButton.GetId())
         self.Bind(wx.EVT_RADIOBUTTON, self.ChangePlotType, id=self.wireButton.GetId())
@@ -63,8 +64,10 @@ class PlotFrame3D(wx.Frame):
         self.statusBar.SetFieldsCount(1)
         self.SetStatusBar(self.statusBar)
         
-        self.subplot.imshow(z_values, cmap=cm.get_cmap('gnuplot2'), norm=None, aspect='equal', interpolation=None,
-                            alpha=None, vmin=minValue, vmax=maxValue, origin='lower')
+        self.plot = self.subplot.imshow(z_values, cmap=cm.get_cmap('gnuplot2'), norm=None, aspect='equal',
+                                        interpolation=None, alpha=None, vmin=minValue, vmax=maxValue, origin='lower')
+
+        self.plot_type = constants.IMAGE
         
         buttonSizer = wx.BoxSizer(wx.HORIZONTAL)
         buttonSizer.Add(self.imageButton, 0)
@@ -81,6 +84,25 @@ class PlotFrame3D(wx.Frame):
         self.SetSizer(panelSizer)
         self.Fit()
         
+        return
+
+    def AdjustImage(self, event):
+
+        if self.plot_type == constants.IMAGE:
+
+            value = float(self.adjustmentsPanel.contrastSlider.GetValue())
+            if value == 0:
+                value = 1
+
+            if value > 0:
+                new_limit = self.maxValue - value
+                self.plot.set_clim(vmin=self.minValue, vmax=new_limit)
+            else:
+                new_limit = self.minValue + (-1 * value)
+                self.plot.set_clim(vmin=new_limit, vmax=self.maxValue)
+
+            self.canvas.draw()
+
         return
     
     def OnCloseWindow(self, event):
@@ -99,25 +121,30 @@ class PlotFrame3D(wx.Frame):
         # Create an image plot
         if event.GetId() == 100:
             self.subplot = self.figure.add_subplot(111)
-            self.subplot.imshow(self.z_values, cmap=cm.get_cmap('gnuplot2'), norm=None, aspect='equal', interpolation=None,
-                            alpha=None, vmin=self.minValue, vmax=self.maxValue, origin='lower')
+            self.plot = self.subplot.imshow(self.z_values, cmap=cm.get_cmap('gnuplot2'), norm=None, aspect='equal',
+                                            interpolation=None, alpha=None, vmin=self.minValue, vmax=self.maxValue,
+                                            origin='lower')
+            self.plot_type = constants.IMAGE
 
         # Create a 3D wire plot
         if event.GetId() == 101:
             self.subplot = self.figure.add_subplot(111, projection='3d')
-            self.subplot.plot_wireframe(self.x_values, self.y_values, self.z_values)
+            self.plot = self.subplot.plot_wireframe(self.x_values, self.y_values, self.z_values)
+            self.plot_type = constants.WIREFRAME
             
         # Create a 3D surface plt    
         if event.GetId() == 102:
             self.subplot = self.figure.add_subplot(111, projection='3d')
-            self.subplot.plot_surface(self.x_values, self.y_values, self.z_values, rstride=1, cstride=1, cmap=cm.get_cmap('cool'),
-                                      linewidth=0, antialiased=False)
+            self.plot = self.subplot.plot_surface(self.x_values, self.y_values, self.z_values, rstride=1, cstride=1,
+                                                  cmap=cm.get_cmap('cool'), linewidth=0, antialiased=False)
+            self.plot_type = constants.SURFACE
 
         if event.GetId() == 103:
             self.subplot = self.figure.add_subplot(111)
             dataCopy = self.z_values.copy(order='K')
             x_values = np.arange(0, dataCopy.size)
             self.subplot.plot(x_values, dataCopy.flatten('A'))
+            self.plot_type = constants.TWOD_PLOT
             
         self.canvas.draw()
         
@@ -128,7 +155,7 @@ class ImageAdjustmentPanel(wx.Panel):
     classdocs
     '''
 
-    def __init__(self, parent):
+    def __init__(self, parent, min, max):
         '''
         Constructor
         '''
@@ -139,7 +166,8 @@ class ImageAdjustmentPanel(wx.Panel):
 
         self.contrastLabel = wx.StaticText(self, -1, "Contrast", style=wx.ALIGN_CENTER | wx.SIMPLE_BORDER)
 
-        self.contrastSlider = wx.Slider(self, id=1001, minValue=1, maxValue=500)
+        range = max - min
+        self.contrastSlider = wx.Slider(self, id=1001, minValue=(-1 * range), maxValue=range)
 
         panelSizer = wx.BoxSizer(wx.HORIZONTAL)
         panelSizer.Add(self.contrastLabel, 0)
