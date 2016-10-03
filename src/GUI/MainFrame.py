@@ -181,7 +181,7 @@ class MainFrame(wx.Frame):
                     else:
                         ctrl[0].SetValue("%f" % upperBound)
                         ctrl[1].SetValue("%f" % lowerBound)
-                
+
                     i = i + 1
 
             if self.plot_type == constants.IMAGE:
@@ -189,6 +189,8 @@ class MainFrame(wx.Frame):
                     dimensions = roiList[i].GetDimensions()
                     ctrl[0].SetValue("%d,%d" % (dimensions[0], dimensions[1]))
                     ctrl[1].SetValue("%d,%d" % (dimensions[2], dimensions[3]))
+
+                    i = i + 1
         
         return
 
