@@ -88,7 +88,7 @@ class MainFrame(wx.Frame):
         
         self.frameSizer.Add(self.plottingPanel, 1, wx.EXPAND)
 #        self.frameSizer.Add(self.fileTree, 1, wx.EXPAND)
-        self.frameSizer.Add(self.fileTree, 0)
+        self.frameSizer.Add(self.fileTree, 0, wx.EXPAND)
         
         self.Bind(wx.EVT_BUTTON, self.OnCloseButtonClick, self.fileTree.buttonPanel.fileButtonPanel.exitButton)
         self.Bind(wx.EVT_BUTTON, self.OnPlotButtonClick, self.fileTree.buttonPanel.fileButtonPanel.plotDataButton)
@@ -238,11 +238,19 @@ class MainFrame(wx.Frame):
                 self.fileTree.buttonPanel.roiPanel.ClearAndReset(2, constants.RECTANGLE)
             self.plot_type = constants.IMAGE
             self.fileTree.buttonPanel.fileButtonPanel.backgroundCheckBox.SetValue(False)
+            self.fileTree.buttonPanel.fileButtonPanel.backgroundCheckBox.Hide()
+            self.fileTree.buttonPanel.fileButtonPanel.saveAsFileButton.Hide()
+            self.fileTree.buttonPanel.fileButtonPanel.plotSumButton.Show()
+            self.frameSizer.Layout()
         elif fileName.endswith('.int'):
             self.data = XYDataArray()
             if not self.plot_type == constants.TWOD_PLOT:
                 self.fileTree.buttonPanel.roiPanel.ClearAndReset(2, constants.LINE)
             self.plot_type = constants.TWOD_PLOT
+            self.fileTree.buttonPanel.fileButtonPanel.backgroundCheckBox.Show()
+            self.fileTree.buttonPanel.fileButtonPanel.saveAsFileButton.Show()
+            self.fileTree.buttonPanel.fileButtonPanel.plotSumButton.Hide()
+            self.frameSizer.Layout()
         else:
             dlg = wx.MessageDialog(parent=None, message="Error: Unknown file type",
                                    caption="File Type Error", style=wx.OK | wx.ICON_ERROR)
@@ -897,6 +905,10 @@ class FileButtonPanel(wx.Panel):
         panelSizer.Add(self.progressGauge, 0, wx.ALIGN_CENTER)
         panelSizer.Add(self.line3, 0, wx.ALIGN_CENTER)
         panelSizer.Add(self.exitButton, 0, wx.ALIGN_CENTER)
+
+        self.backgroundCheckBox.Hide()
+        self.saveAsFileButton.Hide()
+        self.plotSumButton.Hide()
         
         self.SetAutoLayout(True)
         self.SetSizer(panelSizer)
